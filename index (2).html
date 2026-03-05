@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAZE OF DREAD</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --blood: #8b0000;
+    --dark: #050505;
+    --fog: #1a1a1a;
+    --dim: #2a2a2a;
+    --sickly: #4a6741;
+    --pale: #c8b89a;
+    --flicker: #ff4411;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--dark);
+    color: var(--pale);
+    font-family: 'Share Tech Mono', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: hidden;
+    cursor: crosshair;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.15) 2px,
+      rgba(0,0,0,0.15) 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  #screen {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  h1 {
+    font-family: 'Creepster', cursive;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    color: var(--blood);
+    text-shadow: 0 0 20px #ff000066, 0 0 40px #ff000033;
+    letter-spacing: 6px;
+    animation: flicker 4s infinite;
+  }
+
+  @keyframes flicker {
+    0%,95%,100% { opacity: 1; }
+    96% { opacity: 0.4; }
+    97% { opacity: 1; }
+    98% { opacity: 0.2; }
+    99% { opacity: 0.9; }
+  }
+
+  #hud {
+    display: flex;
+    gap: 24px;
+    font-size: 0.75rem;
+    color: var(--sickly);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  #canvas-wrap {
+    position: relative;
+    border: 1px solid #8b000044;
+    box-shadow: 0 0 40px #8b000033, inset 0 0 60px #00000088;
+  }
+
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+  }
+
+  #vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, #000000cc 100%);
+    pointer-events: none;
+  }
+
+  #msg {
+    font-family: 'Creepster', cursive;
+    font-size: 1.4rem;
+    letter-spacing: 3px;
+    min-height: 2rem;
+    color: var(--flicker);
+    text-shadow: 0 0 10px currentColor;
+    transition: opacity 0.3s;
+    text-align: center;
+  }
+
+  #controls {
+    font-size: 0.65rem;
+    color: #555;
+    letter-spacing: 2px;
+    text-align: center;
+    line-height: 1.8;
+  }
+
+  /* Overlay screens */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    z-index: 50;
+    background: #000000ee;
+    backdrop-filter: blur(4px);
+  }
+
+  .overlay h2 {
+    font-family: 'Creepster', cursive;
+    font-size: clamp(2.5rem, 8vw, 5rem);
+    color: var(--blood);
+    text-shadow: 0 0 30px #ff000088;
+    animation: flicker 3s infinite;
+    text-align: center;
+  }
+
+  .overlay p {
+    font-size: 0.9rem;
+    color: var(--pale);
+    letter-spacing: 2px;
+    text-align: center;
+    max-width: 400px;
+    line-height: 1.8;
+    opacity: 0.8;
+  }
+
+  .btn {
+    font-family: 'Creepster', cursive;
+    font-size: 1.4rem;
+    letter-spacing: 4px;
+    padding: 12px 36px;
+    background: transparent;
+    border: 1px solid var(--blood);
+    color: var(--pale);
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    box-shadow: 0 0 10px #8b000044;
+  }
+
+  .btn:hover {
+    background: var(--blood);
+    box-shadow: 0 0 20px #ff000066;
+    color: #fff;
+  }
+
+  #win-overlay h2 { color: #4a6741; text-shadow: 0 0 30px #4a674188; }
+
+  .hidden { display: none; }
+
+  /* Blood drip animation */
+  @keyframes drip {
+    0% { transform: translateY(-100%); opacity: 0; }
+    10% { opacity: 1; }
+    100% { transform: translateY(100vh); opacity: 0.6; }
+  }
+
+  .drip {
+    position: fixed;
+    width: 3px;
+    background: linear-gradient(to bottom, var(--blood), #4a000066);
+    border-radius: 0 0 50% 50%;
+    animation: drip linear forwards;
+    pointer-events: none;
+    z-index: 40;
+  }
+
+  #heartbeat {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.6rem;
+    color: #8b000066;
+    letter-spacing: 4px;
+    animation: pulse 1.5s infinite;
+  }
+
+  @keyframes pulse {
+    0%,100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<!-- START OVERLAY -->
+<div class="overlay" id="start-overlay">
+  <h2>MAZE OF DREAD</h2>
+  <p>Vous êtes piégé dans le labyrinthe.<br>Trouvez la sortie avant que l'obscurité ne vous avale.</p>
+  <button class="btn" onclick="startGame()">ENTRER</button>
+  <div style="font-size:0.6rem;color:#444;letter-spacing:2px;margin-top:8px;">↑ ↓ ← →  ou  WASD</div>
+</div>
+
+<!-- DEATH OVERLAY -->
+<div class="overlay hidden" id="death-overlay">
+  <h2>VOUS ÊTES MORT</h2>
+  <p>L'obscurité vous a englouti.<br>Il ne reste plus rien de vous.</p>
+  <button class="btn" onclick="restartGame()">RECOMMENCER</button>
+</div>
+
+<!-- WIN OVERLAY -->
+<div class="overlay hidden" id="win-overlay">
+  <h2>VOUS AVEZ FUIT</h2>
+  <p>La lumière du monde réel vous accueille...<br>Pour combien de temps encore ?</p>
+  <button class="btn" onclick="restartGame()">REJOUER</button>
+</div>
+
+<div id="screen">
+  <h1>MAZE OF DREAD</h1>
+  <div id="hud">
+    <span>NIVEAU: <span id="lvl-display">1</span></span>
+    <span>PEUR: <span id="fear-display">0</span>%</span>
+    <span>TEMPS: <span id="time-display">00:00</span></span>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="c"></canvas>
+    <div id="vignette"></div>
+  </div>
+  <div id="msg"></div>
+  <div id="controls">
+    DÉPLACER: ↑ ↓ ← → &nbsp;|&nbsp; WASD &nbsp;|&nbsp; TOUCH: SWIPE
+  </div>
+</div>
+
+<div id="heartbeat">♥ ♥ ♥</div>
+
+<script>
+// ─────────────────────────────────────────
+//  MAZE OF DREAD — Core Engine
+// ─────────────────────────────────────────
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+const CELL = 32;
+const COLS = 19;
+const ROWS = 15;
+const W = COLS * CELL;
+const H = ROWS * CELL;
+
+canvas.width = W;
+canvas.height = H;
+
+// ── Palette ──────────────────────────────
+const PAL = {
+  wall:    '#1a1a1a',
+  wallEdge:'#0d0d0d',
+  floor:   '#111111',
+  player:  '#c8b89a',
+  exit:    '#4a6741',
+  fog:     '#050505',
+  torch:   '#ff8800',
+  enemy:   '#8b0000',
+  blood:   '#5a0000',
+};
+
+// ── State ─────────────────────────────────
+let maze, player, enemies, exit, fear, startTime, gameRunning, level;
+let keys = {};
+let flashAlpha = 0;
+let screenshake = { x: 0, y: 0, t: 0 };
+let messages = [];
+let animFrame;
+
+const horrorMessages = [
+  "Quelque chose vous observe...",
+  "Vous entendez des pas derrière vous.",
+  "Un souffle froid dans votre nuque.",
+  "Le labyrinthe se referme sur vous.",
+  "Ses yeux brillent dans l'obscurité.",
+  "Vous ne pouvez pas vous échapper.",
+  "Il vous suit.",
+];
+
+// ── Maze Generation (Recursive Backtracker) ──
+function generateMaze(cols, rows) {
+  const grid = [];
+  for (let r = 0; r < rows; r++) {
+    grid[r] = [];
+    for (let c = 0; c < cols; c++) {
+      grid[r][c] = { walls: [true, true, true, true], visited: false };
+      // walls: [top, right, bottom, left]
+    }
+  }
+
+  function neighbors(r, c) {
+    const dirs = [[-1,0,0,2],[0,1,1,3],[1,0,2,0],[0,-1,3,1]];
+    return dirs
+      .map(([dr,dc,w,ow]) => [r+dr, c+dc, w, ow])
+      .filter(([nr,nc]) => nr>=0 && nr<rows && nc>=0 && nc<cols && !grid[nr][nc].visited);
+  }
+
+  function carve(r, c) {
+    grid[r][c].visited = true;
+    const ns = neighbors(r, c).sort(() => Math.random()-0.5);
+    for (const [nr, nc, w, ow] of ns) {
+      if (!grid[nr][nc].visited) {
+        grid[r][c].walls[w] = false;
+        grid[nr][nc].walls[ow] = false;
+        carve(nr, nc);
+      }
+    }
+  }
+
+  carve(0, 0);
+  return grid;
+}
+
+// ── Enemy AI ──────────────────────────────
+function moveEnemies() {
+  if (!gameRunning) return;
+  enemies.forEach(e => {
+    const dx = player.c - e.c;
+    const dy = player.r - e.r;
+    const dist = Math.abs(dx) + Math.abs(dy);
+
+    if (dist <= 8) {
+      // Chase
+      const dirs = [];
+      if (dy < 0 && !maze[e.r][e.c].walls[0]) dirs.push([-1, 0]);
+      if (dx > 0 && !maze[e.r][e.c].walls[1]) dirs.push([0,  1]);
+      if (dy > 0 && !maze[e.r][e.c].walls[2]) dirs.push([1,  0]);
+      if (dx < 0 && !maze[e.r][e.c].walls[3]) dirs.push([0, -1]);
+
+      if (dirs.length) {
+        const [dr, dc] = dirs[Math.floor(Math.random() * dirs.length)];
+        e.r += dr;
+        e.c += dc;
+      }
+    } else {
+      // Wander
+      const open = [];
+      if (!maze[e.r][e.c].walls[0]) open.push([-1, 0]);
+      if (!maze[e.r][e.c].walls[1]) open.push([0,  1]);
+      if (!maze[e.r][e.c].walls[2]) open.push([1,  0]);
+      if (!maze[e.r][e.c].walls[3]) open.push([0, -1]);
+      if (open.length) {
+        const [dr, dc] = open[Math.floor(Math.random() * open.length)];
+        e.r += dr;
+        e.c += dc;
+      }
+    }
+
+    // Check catch
+    if (e.r === player.r && e.c === player.c) {
+      fear = 100;
+      triggerDeath();
+    }
+  });
+}
+
+// ── Move Player ────────────────────────────
+function tryMove(dr, dc) {
+  if (!gameRunning) return;
+  const wallMap = { '-10': 0, '01': 1, '10': 2, '0-1': 3 };
+  const key = `${dr}${dc}`;
+  const wallIdx = wallMap[key];
+  if (wallIdx !== undefined && !maze[player.r][player.c].walls[wallIdx]) {
+    player.r += dr;
+    player.c += dc;
+    player.trail.push({ r: player.r, c: player.c, a: 1 });
+    if (player.trail.length > 8) player.trail.shift();
+
+    // Check win
+    if (player.r === exit.r && player.c === exit.c) {
+      triggerWin();
+    }
+
+    // Fear proximity
+    enemies.forEach(e => {
+      const d = Math.abs(e.r - player.r) + Math.abs(e.c - player.c);
+      if (d <= 3) {
+        fear = Math.min(100, fear + 15);
+        screenshake = { x: 0, y: 0, t: 6 };
+        if (d === 1) flashAlpha = 0.4;
+      }
+    });
+  } else {
+    // Bump into wall — small shake
+    screenshake = { x: 0, y: 0, t: 3 };
+  }
+}
+
+// ── Triggers ───────────────────────────────
+function triggerDeath() {
+  gameRunning = false;
+  flashAlpha = 0.9;
+  spawnDrips(12);
+  setTimeout(() => {
+    document.getElementById('death-overlay').classList.remove('hidden');
+  }, 800);
+}
+
+function triggerWin() {
+  gameRunning = false;
+  document.getElementById('win-overlay').classList.remove('hidden');
+}
+
+// ── Drawing ────────────────────────────────
+function drawCell(r, c) {
+  const x = c * CELL;
+  const y = r * CELL;
+  const cell = maze[r][c];
+
+  // Floor
+  ctx.fillStyle = PAL.floor;
+  ctx.fillRect(x, y, CELL, CELL);
+
+  // Blood stains near death spots
+  if (Math.random() < 0.0005) {
+    ctx.fillStyle = PAL.blood + '33';
+    ctx.beginPath();
+    ctx.arc(x + CELL/2, y + CELL/2, CELL * 0.4, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // Walls
+  ctx.strokeStyle = '#2a2a2a';
+  ctx.lineWidth = 2;
+
+  // Fill walls as thick blocks
+  ctx.fillStyle = PAL.wall;
+  if (cell.walls[0]) { ctx.fillRect(x, y, CELL, 4); } // top
+  if (cell.walls[1]) { ctx.fillRect(x+CELL-4, y, 4, CELL); } // right
+  if (cell.walls[2]) { ctx.fillRect(x, y+CELL-4, CELL, 4); } // bottom
+  if (cell.walls[3]) { ctx.fillRect(x, y, 4, CELL); } // left
+}
+
+function drawPlayer() {
+  const cx = player.c * CELL + CELL/2;
+  const cy = player.r * CELL + CELL/2;
+
+  // Light radius
+  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, CELL * 3.5);
+  grad.addColorStop(0,   'rgba(255,200,100,0.12)');
+  grad.addColorStop(0.5, 'rgba(255,150,50,0.05)');
+  grad.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, CELL * 3.5, 0, Math.PI*2);
+  ctx.fill();
+
+  // Trail
+  player.trail.forEach((t, i) => {
+    const tx = t.c * CELL + CELL/2;
+    const ty = t.r * CELL + CELL/2;
+    const a = (i+1) / player.trail.length * 0.3;
+    ctx.fillStyle = `rgba(200,184,154,${a})`;
+    ctx.beginPath();
+    ctx.arc(tx, ty, 4, 0, Math.PI*2);
+    ctx.fill();
+  });
+
+  // Body
+  ctx.fillStyle = PAL.player;
+  ctx.beginPath();
+  ctx.arc(cx, cy, CELL * 0.28, 0, Math.PI*2);
+  ctx.fill();
+
+  // Eye glow
+  ctx.fillStyle = '#ffcc88';
+  ctx.shadowColor = '#ff8800';
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, Math.PI*2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+function drawExit() {
+  const cx = exit.c * CELL + CELL/2;
+  const cy = exit.r * CELL + CELL/2;
+
+  // Pulsing glow
+  const t = Date.now() / 1000;
+  const pulse = 0.5 + 0.5 * Math.sin(t * 3);
+
+  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, CELL);
+  grad.addColorStop(0, `rgba(74,103,65,${0.4 + pulse*0.3})`);
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, CELL, 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle = PAL.exit;
+  ctx.shadowColor = '#4a6741';
+  ctx.shadowBlur = 10 + pulse * 10;
+  ctx.beginPath();
+  ctx.arc(cx, cy, CELL * 0.3, 0, Math.PI*2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // EXIT label
+  ctx.fillStyle = `rgba(74,103,65,${0.5 + pulse*0.5})`;
+  ctx.font = '7px Share Tech Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText('EXIT', cx, cy - CELL*0.5);
+}
+
+function drawEnemy(e) {
+  const cx = e.c * CELL + CELL/2;
+  const cy = e.r * CELL + CELL/2;
+  const t = Date.now() / 600 + e.phase;
+
+  // Check if in player's light
+  const dist = Math.abs(e.r - player.r) + Math.abs(e.c - player.c);
+  if (dist > 5) return;
+
+  // Creepy glow
+  ctx.fillStyle = '#8b000044';
+  ctx.beginPath();
+  ctx.arc(cx, cy, CELL * 0.5, 0, Math.PI*2);
+  ctx.fill();
+
+  // Body (jagged, scary)
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(t * 0.1);
+  ctx.fillStyle = PAL.enemy;
+  ctx.shadowColor = '#ff0000';
+  ctx.shadowBlur = 8 + Math.sin(t) * 4;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const r = CELL * (0.25 + (i%2) * 0.08);
+    i === 0 ? ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r)
+             : ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = '#ff4400';
+  ctx.shadowBlur = 6;
+  [-5, 5].forEach(ox => {
+    ctx.beginPath();
+    ctx.arc(ox, -3, 2, 0, Math.PI*2);
+    ctx.fill();
+  });
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+function drawFog() {
+  // Fog of war: dark outside light radius
+  ctx.fillStyle = 'rgba(5,5,5,0.85)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Erase fog around player
+  const cx = player.c * CELL + CELL/2;
+  const cy = player.r * CELL + CELL/2;
+  ctx.globalCompositeOperation = 'destination-out';
+  const grad = ctx.createRadialGradient(cx, cy, CELL*0.5, cx, cy, CELL * 4);
+  grad.addColorStop(0, 'rgba(0,0,0,1)');
+  grad.addColorStop(0.7, 'rgba(0,0,0,0.8)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, CELL * 4, 0, Math.PI*2);
+  ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+function drawHUD() {
+  // Fear meter background
+  const fearW = 120, fearH = 8;
+  const fx = W - fearW - 10, fy = 10;
+  ctx.fillStyle = '#1a0000';
+  ctx.fillRect(fx, fy, fearW, fearH);
+  ctx.fillStyle = `hsl(${Math.max(0, 30 - fear*0.3)},100%,${30+fear*0.2}%)`;
+  ctx.fillRect(fx, fy, fearW * fear/100, fearH);
+  ctx.strokeStyle = '#8b000066';
+  ctx.strokeRect(fx, fy, fearW, fearH);
+}
+
+// ── Screenshake ──────────────────────────
+function applyShake() {
+  if (screenshake.t > 0) {
+    screenshake.x = (Math.random()-0.5) * 6;
+    screenshake.y = (Math.random()-0.5) * 6;
+    screenshake.t--;
+  } else {
+    screenshake.x = 0;
+    screenshake.y = 0;
+  }
+  ctx.save();
+  ctx.translate(screenshake.x, screenshake.y);
+}
+
+// ── Main Loop ─────────────────────────────
+let lastEnemyMove = 0;
+let lastFearMsg = 0;
+
+function loop(ts) {
+  animFrame = requestAnimationFrame(loop);
+
+  ctx.clearRect(0, 0, W, H);
+
+  applyShake();
+
+  // Draw maze
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      drawCell(r, c);
+
+  drawExit();
+  enemies.forEach(drawEnemy);
+  drawPlayer();
+  drawFog();
+  drawHUD();
+
+  // Red flash
+  if (flashAlpha > 0) {
+    ctx.fillStyle = `rgba(139,0,0,${flashAlpha})`;
+    ctx.fillRect(0, 0, W, H);
+    flashAlpha = Math.max(0, flashAlpha - 0.03);
+  }
+
+  ctx.restore();
+
+  // Enemy movement
+  if (ts - lastEnemyMove > 400 - level * 20) {
+    lastEnemyMove = ts;
+    moveEnemies();
+    fear = Math.max(0, fear - 1);
+  }
+
+  // Random horror messages
+  if (ts - lastFearMsg > 8000 && gameRunning) {
+    lastFearMsg = ts;
+    if (Math.random() < 0.4) {
+      showMsg(horrorMessages[Math.floor(Math.random() * horrorMessages.length)]);
+    }
+  }
+
+  // Update HUD
+  if (gameRunning) {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const m = String(Math.floor(elapsed/60)).padStart(2,'0');
+    const s = String(elapsed%60).padStart(2,'0');
+    document.getElementById('time-display').textContent = `${m}:${s}`;
+    document.getElementById('fear-display').textContent = Math.floor(fear);
+  }
+}
+
+// ── Messages ──────────────────────────────
+let msgTimeout;
+function showMsg(text) {
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  clearTimeout(msgTimeout);
+  msgTimeout = setTimeout(() => el.textContent = '', 3000);
+}
+
+// ── Input ──────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (!gameRunning) return;
+  const map = {
+    ArrowUp: [-1,0], ArrowDown: [1,0], ArrowLeft: [0,-1], ArrowRight: [0,1],
+    w: [-1,0], s: [1,0], a: [0,-1], d: [0,1],
+    W: [-1,0], S: [1,0], A: [0,-1], D: [0,1],
+  };
+  if (map[e.key]) {
+    e.preventDefault();
+    tryMove(...map[e.key]);
+  }
+});
+
+// Touch/swipe
+let touchStart = null;
+canvas.addEventListener('touchstart', e => {
+  touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}, { passive: true });
+canvas.addEventListener('touchend', e => {
+  if (!touchStart) return;
+  const dx = e.changedTouches[0].clientX - touchStart.x;
+  const dy = e.changedTouches[0].clientY - touchStart.y;
+  if (Math.abs(dx) > Math.abs(dy)) tryMove(0, dx > 0 ? 1 : -1);
+  else tryMove(dy > 0 ? 1 : -1, 0);
+  touchStart = null;
+}, { passive: true });
+
+// ── Blood Drips ───────────────────────────
+function spawnDrips(n) {
+  for (let i = 0; i < n; i++) {
+    setTimeout(() => {
+      const d = document.createElement('div');
+      d.className = 'drip';
+      d.style.left = Math.random() * 100 + 'vw';
+      d.style.height = (40 + Math.random() * 60) + 'px';
+      d.style.animationDuration = (1 + Math.random() * 2) + 's';
+      d.style.animationDelay = (Math.random() * 0.5) + 's';
+      document.body.appendChild(d);
+      setTimeout(() => d.remove(), 3000);
+    }, i * 60);
+  }
+}
+
+// ── Init ──────────────────────────────────
+function initLevel(lvl) {
+  level = lvl;
+  maze = generateMaze(COLS, ROWS);
+  player = { r: 0, c: 0, trail: [] };
+  exit = { r: ROWS-1, c: COLS-1 };
+  fear = 0;
+  flashAlpha = 0;
+
+  // Enemies: 2 + level
+  enemies = [];
+  const count = 1 + level;
+  for (let i = 0; i < count; i++) {
+    let er, ec;
+    do {
+      er = Math.floor(Math.random() * ROWS);
+      ec = Math.floor(Math.random() * COLS);
+    } while (Math.abs(er) + Math.abs(ec) < 6);
+    enemies.push({ r: er, c: ec, phase: Math.random() * Math.PI * 2 });
+  }
+
+  startTime = Date.now();
+  gameRunning = true;
+  document.getElementById('lvl-display').textContent = lvl;
+}
+
+function startGame() {
+  document.getElementById('start-overlay').classList.add('hidden');
+  initLevel(1);
+  if (animFrame) cancelAnimationFrame(animFrame);
+  requestAnimationFrame(loop);
+  showMsg("Fuyez.");
+}
+
+function restartGame() {
+  document.getElementById('death-overlay').classList.add('hidden');
+  document.getElementById('win-overlay').classList.add('hidden');
+  initLevel(1);
+}
+
+// Pre-init canvas with darkness
+ctx.fillStyle = '#050505';
+ctx.fillRect(0, 0, W, H);
+</script>
+</body>
+</html>
